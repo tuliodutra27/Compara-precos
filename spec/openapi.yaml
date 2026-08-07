@@ -1,0 +1,210 @@
+openapi: 3.1.0
+info:
+  title: Compara Preços API
+  version: 1.0.0
+  description: >
+    BFF do app Compara Preços. Normaliza as bases estaduais de preços derivadas de
+    NFC-e/NF-e em um contrato único, com cache e fallback histórico.
+  license:
+    name: MIT
+servers:
+  - url: https://api.comparaprecos.app/v1
+    description: produção
+  - url: http://localhost:8000/v1
+    description: desenvolvimento
+
+paths:
+  /precos:
+    get:
+      summary: Consulta preços de um produto numa região
+      operationId: consultarPrecos
+      parameters:
+        - { name: gtin, in: query, schema: { type: string, minLength: 8, maxLength: 14 },
+            description: Código de barras. Mutuamente exclusivo com `termo`. }
+        - { name: termo, in: query, schema: { type: string, minLength: 3 },
+            description: Busca por nome. Mutuamente exclusivo com `gtin`. }
+        - { name: lat, in: query, schema: { type: number, format: double } }
+        - { name: lon, in: query, schema: { type: number, format: double } }
+        - { name: codigo_ibge, in: query, schema: { type: string, pattern: '^[0-9]{7}$' } }
+        - { name: raio_km, in: query, schema: { type: integer, enum: [1, 5, 10, 20], default: 10 } }
+        - { name: dias, in: query, schema: { type: integer, minimum: 1, maximum: 90, default: 30 } }
+      responses:
+        '200':
+          description: Resultado da consulta (lista vazia quando não há dados)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespostaPrecos' }
+        '400': { $ref: '#/components/responses/Erro' }
+        '429': { $ref: '#/components/responses/Erro' }
+        '502': { $ref: '#/components/responses/Erro' }
+
+  /produtos/{gtin}:
+    get:
+      summary: Metadados de um produto
+      operationId: obterProduto
+      parameters:
+        - { name: gtin, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Produto' }
+          description: Produto encontrado
+        '404': { $ref: '#/components/responses/Erro' }
+
+  /localidades/estados:
+    get:
+      summary: Lista de UFs
+      operationId: listarEstados
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Estado' }
+
+  /localidades/estados/{uf}/municipios:
+    get:
+      summary: Municípios de uma UF
+      operationId: listarMunicipios
+      parameters:
+        - { name: uf, in: path, required: true, schema: { type: string, minLength: 2, maxLength: 2 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Municipio' }
+
+  /health:
+    get:
+      summary: Estado do serviço e das fontes
+      operationId: health
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ok, degraded] }
+                  fontes:
+                    type: object
+                    additionalProperties: { type: string, enum: [up, degraded, down] }
+
+components:
+  responses:
+    Erro:
+      description: Erro
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Erro' }
+
+  schemas:
+    Produto:
+      type: object
+      required: [gtin]
+      properties:
+        gtin: { type: string, example: '7896484410687' }
+        descricao: { type: [string, 'null'], example: 'BEBIDA LACTEA ENERGIA 1L CHOCOLATE' }
+        marca: { type: [string, 'null'] }
+        imagem_url: { type: [string, 'null'], format: uri }
+
+    Faixas:
+      type: object
+      description: Faixas de preço justo. `null` quando a amostra é insuficiente.
+      required: [preco_justo, amostra_suficiente]
+      properties:
+        preco_justo: { type: number, example: 4.49 }
+        limite_barato: { type: number, example: 4.48 }
+        limite_razoavel: { type: number, example: 4.49 }
+        limite_toleravel: { type: number, example: 4.50 }
+        minimo: { type: number }
+        maximo: { type: number }
+        amostra_suficiente: { type: boolean }
+
+    Amostra:
+      type: object
+      properties:
+        n_precos: { type: integer }
+        n_lojas: { type: integer }
+        periodo_inicio: { type: [string, 'null'], format: date }
+        periodo_fim: { type: [string, 'null'], format: date }
+        abrangencia: { type: string, enum: [raio_1km, raio_5km, raio_10km, raio_20km, municipio, uf] }
+
+    Estabelecimento:
+      type: object
+      required: [cnpj, nome, municipio, uf]
+      properties:
+        cnpj: { type: string }
+        nome: { type: string }
+        endereco: { type: [string, 'null'] }
+        municipio: { type: string }
+        uf: { type: string }
+        latitude: { type: [number, 'null'] }
+        longitude: { type: [number, 'null'] }
+        distancia_km: { type: [number, 'null'] }
+
+    Oferta:
+      type: object
+      required: [preco, vendido_em, estabelecimento]
+      properties:
+        preco: { type: number, example: 4.29 }
+        faixa: { type: string, enum: [barato, razoavel, toleravel, caro] }
+        vendido_em: { type: string, format: date-time }
+        desatualizado: { type: boolean }
+        estabelecimento: { $ref: '#/components/schemas/Estabelecimento' }
+
+    RespostaPrecos:
+      type: object
+      required: [produto, ofertas, amostra, meta]
+      properties:
+        produto: { $ref: '#/components/schemas/Produto' }
+        faixas:
+          oneOf:
+            - { $ref: '#/components/schemas/Faixas' }
+            - { type: 'null' }
+        amostra: { $ref: '#/components/schemas/Amostra' }
+        ofertas:
+          type: array
+          items: { $ref: '#/components/schemas/Oferta' }
+        meta:
+          type: object
+          properties:
+            fonte: { type: string, example: menor_preco_brasil }
+            cache: { type: string, enum: [hit, miss, fallback] }
+            gerado_em: { type: string, format: date-time }
+            aviso: { type: [string, 'null'] }
+
+    Estado:
+      type: object
+      properties:
+        sigla: { type: string, example: PR }
+        nome: { type: string, example: Paraná }
+
+    Municipio:
+      type: object
+      properties:
+        codigo_ibge: { type: string, example: '4106902' }
+        nome: { type: string, example: Curitiba }
+        uf: { type: string, example: PR }
+
+    Erro:
+      type: object
+      required: [erro]
+      properties:
+        erro:
+          type: object
+          required: [codigo, mensagem]
+          properties:
+            codigo:
+              type: string
+              enum: [PARAMETRO_INVALIDO, NAO_ENCONTRADO, LIMITE_EXCEDIDO, FONTE_INDISPONIVEL, ERRO_INTERNO]
+            mensagem: { type: string }
+            detalhes: { type: object, additionalProperties: true }
+            trace_id: { type: string }
