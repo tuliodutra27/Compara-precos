@@ -52,16 +52,26 @@ Regras que o código precisa respeitar:
    de 5 caracteres (~5 km) antes de qualquer persistência.
 2. **Não pedir login** no MVP — sem cadastro, não há titular identificado.
 3. **Explicar antes de pedir**: tela de contexto antes do prompt de permissão de
-   localização, e o app precisa funcionar sem GPS (seletor manual de cidade).
-4. **Política de privacidade** publicada em URL própria — obrigatória para a Play Store
-   e para o formulário de Segurança de Dados.
+   localização do navegador, e o app precisa funcionar sem GPS (seletor manual de
+   cidade) — o navegador só mostra o prompt uma vez e negar costuma ser definitivo
+   até o usuário mexer nas configurações do site.
+4. **Política de privacidade** publicada em URL própria, linkada no rodapé da PWA —
+   fica pronta para quando/se o app for empacotado numa loja (seção 3).
 5. Canal de contato do encarregado (pode ser o seu e-mail) na política.
+6. **HTTPS obrigatório**: câmera (`getUserMedia`), geolocalização e service worker só
+   funcionam em contexto seguro. Não é só boa prática — é pré-requisito técnico.
 
 Na **fase 2** (envio de notas fiscais) o cenário muda: a NFC-e pode conter CPF do
 consumidor. Regra desde já: **descartar o CPF no momento do parsing**, antes de
 qualquer gravação. Nunca persistir CPF.
 
-## 3. Play Store / App Store
+## 3. Play Store / App Store (opcional, não é o MVP)
+
+Como PWA, o lançamento **não passa por loja de apps nem por processo de revisão** —
+é publicar num domínio HTTPS e pronto. Se, mais adiante, fizer sentido ter presença
+na Play Store (mais descoberta, ícone "oficial" no launcher), o caminho de menor
+esforço é empacotar a mesma PWA como **TWA (Trusted Web Activity)**, sem reescrever
+nada. Pontos a atender nesse momento futuro:
 
 | Exigência | Como atender |
 |---|---|
@@ -70,8 +80,8 @@ qualquer gravação. Nunca persistir CPF.
 | Política de privacidade acessível | URL pública, também linkada dentro do app |
 | Não simular app oficial de governo | nome, ícone e textos sem brasão, sem "SEFAZ", sem "gov" |
 
-O item 4 é o de maior risco de reprovação. Evite qualquer elemento visual que sugira
-origem governamental.
+O último item é o de maior risco de reprovação, TWA ou não. Evite qualquer elemento
+visual que sugira origem governamental — vale também para a PWA em si.
 
 ## 4. Isenção de responsabilidade (dentro do app)
 
@@ -89,7 +99,8 @@ Texto sugerido para a tela "De onde vêm os preços":
 | Endpoint não documentado muda de formato | alta | alto | adapter isolado + teste de contrato diário na CI + payload bruto guardado 7 dias |
 | Bloqueio de IP pela SEFAZ | média | alto | cache, backoff, UA honesto, ofício oficial (seção 1.4) |
 | Cobertura de dados baixa na região do usuário | média | alto | expansão automática de raio → município → UF, com aviso; base colaborativa na fase 2 |
-| GTIN ausente na NFC-e de lojas pequenas | alta | médio | fallback para busca por nome |
+| GTIN ausente na NFC-e de lojas pequenas | alta | médio | busca por nome como caminho equivalente, não escondido |
+| Navegador sem suporte a leitura de código de barras (Safari/Firefox sem `BarcodeDetector`) | média | médio | polyfill JS (doc 03) + busca por nome sempre visível como alternativa igual, não degradada |
 | Mesmo GTIN com embalagens diferentes | baixa | médio | outliers por IQR + exibir descrição da loja |
 | Reclamação de estabelecimento sobre preço exibido | baixa | médio | canal de contato + processo de correção documentado; o dado é fiscal e verificável |
 | Concorrência com o app oficial gratuito | alta | médio | diferencial é UX + comparação multi-fonte + lista de compras (v2) |

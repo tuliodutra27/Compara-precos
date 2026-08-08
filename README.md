@@ -1,9 +1,11 @@
 # Compara Preços
 
-App mobile para comparar preços de supermercado no Brasil: o usuário abre a câmera,
-escaneia o código de barras (GTIN/EAN) do produto e vê onde ele está mais barato
-**perto dele**, com base em preços reais extraídos de notas fiscais eletrônicas
-(NFC-e/NF-e) publicados pelas Secretarias de Fazenda estaduais.
+PWA (aplicativo web instalável, sem loja de apps obrigatória) para comparar preços
+de supermercado no Brasil: o usuário abre o site no navegador, escaneia o código de
+barras (GTIN/EAN) do produto pela câmera **ou digita o nome do produto** (como
+aparece na nota fiscal) e vê onde ele está mais barato **perto dele**, com base em
+preços reais extraídos de notas fiscais eletrônicas (NFC-e/NF-e) publicados pelas
+Secretarias de Fazenda estaduais.
 
 > Status: **planejamento do MVP**. Este repositório contém, hoje, a especificação
 > completa do produto, da arquitetura e do roadmap. Nenhum código de produção foi
@@ -12,8 +14,9 @@ escaneia o código de barras (GTIN/EAN) do produto e vê onde ele está mais bar
 
 ## A ideia em uma frase
 
-> "Vale a pena comprar aqui?" respondido em menos de 5 segundos, com preço mínimo,
-> mediano e a faixa de preço justo dos últimos 30 dias, num raio configurável.
+> "Vale a pena comprar aqui?" respondido em menos de 5 segundos — via scan ou por
+> nome digitado — com preço mínimo, mediano e a faixa de preço justo dos últimos
+> 30 dias, num raio configurável.
 
 ## Índice da documentação
 
@@ -34,7 +37,9 @@ escaneia o código de barras (GTIN/EAN) do produto e vê onde ele está mais bar
 Estas premissas guiam toda a documentação. Se alguma mudar, os documentos afetados
 estão indicados entre parênteses.
 
-1. **Mobile:** React Native + Expo (app único Android/iOS, câmera e GPS prontos). — *(03)*
+1. **Frontend:** PWA — React + Vite, instalável direto do navegador. Scanner via
+   câmera do navegador (`getUserMedia`), busca por nome sempre disponível como
+   caminho alternativo/primário. — *(03)*
 2. **Backend:** Python + FastAPI, com Postgres 16 + PostGIS e Redis. — *(03, 04)*
 3. **Fonte primária:** APIs públicas estaduais de preços (Menor Preço Brasil,
    Preço da Hora BA, Menor Preço Nota Paraná). — *(02)*

@@ -92,6 +92,13 @@ As APIs de preço às vezes devolvem a descrição digitada pelo lojista — que
 mais frequente** entre as ofertas daquele GTIN — é boa o suficiente e custa zero.
 Integração com CCG/GS1 fica para a v2.
 
+Essa normalização importa mais agora que a busca por nome (US-06) é caminho
+primário, não só fallback: é sobre essa descrição normalizada que o autocomplete
+(`GET /v1/produtos/busca`, doc [05](05-contrato-api.md)) roda a busca por similaridade
+de texto (`pg_trgm`). Descrição suja = autocomplete ruim = usuário não encontra o
+produto digitando — o mesmo problema de qualidade, só que na porta de entrada por
+texto em vez da porta de entrada por GTIN.
+
 ## 5. Plano B (e complemento): base colaborativa via NFC-e
 
 A sua ideia original — usuários enviando notas — continua valendo, como **fase 2** e

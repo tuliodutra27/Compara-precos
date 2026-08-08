@@ -52,6 +52,26 @@ paths:
           description: Produto encontrado
         '404': { $ref: '#/components/responses/Erro' }
 
+  /produtos/busca:
+    get:
+      summary: Autocomplete de produtos por nome (US-06)
+      operationId: buscarProdutos
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2, maxLength: 60 } }
+        - { name: limite, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 8 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sugestoes:
+                    type: array
+                    items: { $ref: '#/components/schemas/Produto' }
+        '400': { $ref: '#/components/responses/Erro' }
+
   /localidades/estados:
     get:
       summary: Lista de UFs

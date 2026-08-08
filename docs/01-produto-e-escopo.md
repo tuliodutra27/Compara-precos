@@ -9,7 +9,9 @@ comparação regional consolidada.
 
 ## 2. Proposta de valor
 
-Escanear o código de barras e receber, em menos de 5 segundos:
+Escanear o código de barras **ou digitar o nome do produto** (do jeito abreviado que
+ele aparece na nota fiscal, ex. "BEB LACT ENERG 1L CHOC") e receber, em menos de
+5 segundos:
 
 - o **menor preço** encontrado num raio configurável (padrão 10 km);
 - a **faixa de preço justo** (Barato / Razoável / Tolerável / Caro) — o mesmo conceito
@@ -26,21 +28,29 @@ Escanear o código de barras e receber, em menos de 5 segundos:
 | **Ana, compra do mês** | Não pagar 30% a mais no mesmo item | Scan + comparação por raio |
 | **Carlos, compra rápida** | Decidir na gôndola em segundos | Faixa de preço justo com semáforo |
 | **Dona Marta, orçamento apertado** | Saber em qual mercado do bairro ir | Ranking de lojas por preço |
+| **Beto, planejando em casa** | Conferir a lista de compras antes de sair, sem os produtos em mãos | Busca por nome digitado, sem precisar escanear |
 
 ## 4. Escopo do MVP
 
 ### Dentro (must have)
 
-1. **Scanner de código de barras** (EAN-13, EAN-8, UPC-A, ITF-14) com a câmera.
-2. **Busca de preços por GTIN** na fonte de dados do estado ativo.
-3. **Filtro geográfico**: por GPS (raio de 1 / 5 / 10 / 20 km) **ou** por cidade/UF
+1. **Scanner de código de barras** (EAN-13, EAN-8, UPC-A, ITF-14) via câmera do
+   navegador — não é um recurso nativo, é uma PWA (ver doc [03](03-arquitetura.md)).
+2. **Busca por nome/descrição do produto**, digitada como no cupom fiscal — caminho
+   de entrada **tão primário quanto o scan**, não um fallback: cobre quem está
+   planejando a compra em casa, produto ilegível/sem embalagem em mãos, ou navegador
+   sem suporte a leitura de código de barras (ver doc [03](03-arquitetura.md), seção
+   de compatibilidade). Com sugestões (autocomplete) enquanto digita.
+3. **Busca de preços por GTIN ou por termo** na fonte de dados do estado ativo.
+4. **Filtro geográfico**: por GPS (raio de 1 / 5 / 10 / 20 km) **ou** por cidade/UF
    escolhida manualmente (via API de localidades do IBGE), para quem nega a permissão
    de localização ou quer pesquisar antes de sair de casa.
-4. **Tela de resultado**: preço justo, faixas, menor/maior preço, lista de lojas
+5. **Tela de resultado**: preço justo, faixas, menor/maior preço, lista de lojas
    ordenada por preço com distância, e o rodapé de transparência da amostra.
-5. **Busca por nome** do produto como fallback quando o GTIN não retorna nada.
-6. **Histórico local** dos últimos scans (offline, no dispositivo).
-7. **Backend próprio (BFF)** com cache — o app nunca fala direto com o governo.
+6. **Histórico local** dos últimos scans/buscas (offline, no dispositivo).
+7. **Backend próprio (BFF)** com cache — a PWA nunca fala direto com o governo.
+8. **Instalável**: manifest + service worker, para virar ícone na tela inicial sem
+   passar por loja de apps.
 
 ### Fora (v2+)
 
@@ -57,6 +67,8 @@ Escanear o código de barras e receber, em menos de 5 segundos:
 - Não é marketplace: não vendemos nem intermediamos compra.
 - Não prometemos preço em tempo real da gôndola — mostramos o **último preço
   registrado em nota fiscal**, sempre com a data, e isso precisa estar visível na UI.
+- Não é um app nativo: distribuição via URL/PWA, não via Google Play/App Store
+  (publicar nas lojas fica como opção futura via TWA — doc [08](08-legal-lgpd-e-riscos.md)).
 
 ## 5. User stories principais
 
@@ -81,14 +93,20 @@ US-04  Como consumidor, quero ver a distância até cada loja
 US-05  Como consumidor, quero ver quando aquele preço foi registrado
        para saber se está desatualizado.
        DoD: data da venda por item; itens com mais de 30 dias sinalizados.
+
+US-06  Como consumidor sem o produto em mãos (planejando a compra em casa,
+       ou código de barras ilegível), quero digitar o nome do produto
+       para ver os mesmos resultados que teria escaneando.
+       DoD: busca por termo com autocomplete (≥ 2 caracteres, resposta < 300 ms),
+       resultado idêntico em estrutura ao de US-01.
 ```
 
 ## 6. Métricas de sucesso do MVP
 
 | Métrica | Meta na 4ª semana pós-lançamento |
 |---|---|
-| Taxa de scan com resultado útil (≥ 3 lojas) | ≥ 60% |
-| Tempo p95 do scan até o resultado | ≤ 5 s |
+| Taxa de busca (scan + nome) com resultado útil (≥ 3 lojas) | ≥ 60% |
+| Tempo p95 do scan/busca até o resultado | ≤ 5 s |
 | Erro de API para o usuário | ≤ 2% das buscas |
 | Retenção D7 | ≥ 20% |
 | Scans por usuário ativo/semana | ≥ 4 |
@@ -102,3 +120,6 @@ nenhuma melhoria de UI salva o app — o caminho passa a ser a base colaborativa
   API + volume de NFC-e + a região onde você mora, para conseguir testar na rua).
 - O app precisa de conta de usuário já no MVP? Recomendação: **não** — só é
   necessário quando entrar o envio de notas.
+- Qual dos dois caminhos (scan ou busca por nome) abre por padrão na tela inicial?
+  Recomendação: scan em destaque (é o mais rápido quando o produto está em mãos),
+  com a busca por nome sempre visível logo abaixo, nunca escondida em outra tela.

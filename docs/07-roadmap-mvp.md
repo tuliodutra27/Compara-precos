@@ -14,6 +14,7 @@ Nada mais começa antes disso. O objetivo é responder: **existe dado utilizáve
 | S0-3 | Testar `menorpreco.notaparana.pr.gov.br/api/v1/produtos` | script `spikes/nota_parana.py` funcionando |
 | S0-4 | Ler os termos de uso dos portais testados | seção preenchida no doc 08 |
 | S0-5 | Medir cobertura: 30 GTINs reais da sua despensa × 3 regiões | planilha com % de acerto e nº médio de lojas |
+| S0-6 | Testar `BarcodeDetector` + polyfill num protótipo mínimo (1 página HTML) em Chrome Android e Safari iOS | nota de compatibilidade real, não só a doc de terceiros |
 
 **Critério de saída:** ao menos uma fonte devolve, para ≥ 60% dos GTINs testados,
 **5 ou mais lojas** dentro de 10 km. Se falhar → o projeto vira "base colaborativa
@@ -29,45 +30,62 @@ primeiro" e o roadmap muda (a fase 2 vira fase 1).
 - `GET /v1/precos` com `lat`/`lon`/`raio_km`, gravando as ofertas no banco.
 - **DoD:** `curl` local devolve o JSON do doc [05](05-contrato-api.md) para um GTIN real.
 
-## Sprint 2 — Backend: preço justo, cache e localidades
+## Sprint 2 — Backend: preço justo, busca por nome, cache e localidades
 
 - `services/preco_justo.py` conforme doc [06](06-algoritmo-preco-justo.md) + testes unitários.
+- `GET /v1/precos?termo=...` e `GET /v1/produtos/busca` (autocomplete via `pg_trgm`) —
+  US-06 nasce no backend junto com o scan, não depois.
 - Cache Redis (L2) e fallback para o Postgres quando a fonte falha.
 - `/v1/localidades/*` (proxy IBGE) e filtro por `codigo_ibge`.
-- Rate limiting, envelope de erro, Sentry, `/v1/health`.
-- **DoD:** teste de contrato rodando na CI; p95 < 800 ms com cache quente.
+- Rate limiting, CORS, envelope de erro, Sentry, `/v1/health`.
+- **DoD:** teste de contrato rodando na CI; p95 < 800 ms com cache quente; autocomplete
+  < 300 ms.
 
-## Sprint 3 — App: scanner e resultado
+## Sprint 3 — PWA: scanner, busca por nome e resultado
 
-- Expo + expo-router; permissões de câmera e localização com telas de recusa tratadas.
-- Scanner (`expo-camera`) com leitura de EAN-13/EAN-8/UPC-A/ITF-14 e feedback tátil.
+- Projeto Vite + React + TypeScript + `vite-plugin-pwa` (manifest + service worker
+  do app shell desde o commit inicial — não deixar para o fim).
+- Scanner via `getUserMedia` + `BarcodeDetector`/polyfill, com permissão de câmera
+  tratada (estado de recusa com instrução de como reativar no navegador).
+- Campo de busca por nome com autocomplete, lado a lado com o scanner na tela
+  inicial — não escondido em outra aba.
 - Tela de resultado: componente `FaixaPrecoJusto` (o semáforo de 4 faixas do print) +
-  lista de lojas com preço, distância e data.
+  lista de lojas com preço, distância e data. Mesma tela para os dois caminhos de
+  entrada (scan e nome).
 - Estados de erro/vazio/carregando desenhados — não improvise depois.
-- **DoD:** escanear um produto de verdade num mercado de verdade e ver o preço.
+- **DoD:** escanear um produto de verdade **e** buscar pelo nome, num mercado de
+  verdade, e ver o preço nos dois casos — em Chrome Android e em Safari iOS.
 
-## Sprint 4 — App: filtros, histórico e polimento
+## Sprint 4 — PWA: filtros, histórico e polimento
 
 - Seletor de raio (1/5/10/20 km) e seletor manual UF → município.
-- Busca por nome quando o GTIN não retorna nada.
-- Histórico local dos últimos 20 scans.
-- Ícone, splash, textos, tela "de onde vêm os preços" (transparência).
-- **DoD:** navegação completa sem travar; funciona com GPS negado.
+- Geolocalização via `navigator.geolocation`, com fallback ao seletor manual quando
+  negada.
+- Histórico local (IndexedDB) dos últimos 20 scans/buscas.
+- Ícones/splash do manifest, textos, tela "de onde vêm os preços" (transparência),
+  prompt de instalação (`beforeinstallprompt`) discreto após o primeiro resultado útil.
+- Auditoria **Lighthouse PWA** (Chrome DevTools): instalável, performance, acessibilidade.
+- **DoD:** navegação completa sem travar; funciona com GPS negado; Lighthouse PWA ≥ 90.
 
 ## Sprint 5 — Beta fechado
 
-- Build EAS → Google Play **teste interno** (até 100 testadores).
-- 10–15 pessoas reais usando por 1 semana.
-- Instrumentar as métricas do doc [01](01-produto-e-escopo.md), seção 6.
+- Deploy em domínio próprio com HTTPS (Cloudflare Pages/Vercel + Fly.io) — sem
+  submissão a loja alguma, é só publicar.
+- Link compartilhado com 10–15 pessoas reais por 1 semana (WhatsApp/e-mail).
+- Instrumentar as métricas do doc [01](01-produto-e-escopo.md), seção 6, separando
+  taxa de sucesso por caminho de entrada (scan vs. nome) e por navegador.
 - Corrigir os 5 problemas mais citados.
-- **DoD:** taxa de scan com resultado útil ≥ 60% medida em campo.
+- **DoD:** taxa de busca (scan + nome) com resultado útil ≥ 60% medida em campo.
 
 ## Sprint 6 — Lançamento
 
-- Política de privacidade publicada (obrigatória na Play Store) — doc [08](08-legal-lgpd-e-riscos.md).
-- Ficha da loja, prints, descrição.
-- Submissão à produção (Android).
-- Monitoramento: alerta de Sentry + alerta de queda de fonte.
+- Política de privacidade publicada, linkada no rodapé — doc [08](08-legal-lgpd-e-riscos.md).
+- Domínio final, SEO básico (title, description, Open Graph para link bonito no
+  WhatsApp), ícone de instalação revisado.
+- Publicar o link amplamente; monitoramento com alerta de Sentry + alerta de queda
+  de fonte.
+- (Opcional, fora do MVP) empacotar como TWA para a Play Store — só depois de validar
+  tração via PWA pura.
 
 ## Depois do MVP (ordem sugerida)
 
@@ -75,7 +93,7 @@ primeiro" e o roadmap muda (a fase 2 vira fase 1).
    cria base proprietária. Requer conta de usuário e fila assíncrona.
 2. **Lista de compras** com otimização de cesta ("onde a lista toda sai mais barato").
 3. **Alerta de preço** por produto favorito.
-4. **iOS**.
+4. **TWA na Play Store** (e, se fizer sentido, App Store) — mesma PWA, empacotada.
 5. Expansão de UFs — um adapter por vez, com o teste de contrato como portão.
 
 ## Resumo de custos (mensal, MVP)
@@ -83,10 +101,13 @@ primeiro" e o roadmap muda (a fase 2 vira fase 1).
 | Item | Custo |
 |---|---|
 | Fly.io (API + Postgres + Redis) | US$ 15–25 |
-| Google Play (taxa única) | US$ 25 |
+| Cloudflare Pages / Vercel (frontend) | US$ 0 (free tier) |
 | Sentry (free tier) | US$ 0 |
 | Domínio | ~R$ 40/ano |
-| **Total recorrente** | **≈ US$ 20/mês** |
+| **Total recorrente** | **≈ US$ 15–25/mês** |
+
+Sem taxa de loja de apps no MVP (economia de US$ 25 + US$ 99/ano frente ao caminho
+nativo) — esse custo só entra se/quando publicar via TWA.
 
 ## Riscos do cronograma
 
@@ -94,4 +115,5 @@ primeiro" e o roadmap muda (a fase 2 vira fase 1).
 |---|---|---|
 | Sprint 0 falha | cobertura < 60% | pivotar para base colaborativa; +4 semanas |
 | Fonte bloqueia o IP do servidor | 429/403 em massa | reduzir TTL de cache para +24 h, negociar acesso oficial com a SEFAZ |
-| Play Store recusa por política de dados | rejeição | política de privacidade e declaração de coleta prontas **antes** da Sprint 6 |
+| `BarcodeDetector`/polyfill instável em iOS | scan falha/trava em teste real (S0-6) | busca por nome vira caminho padrão em iOS, não só alternativa |
+| Baixa instalação da PWA | usuários usam só via navegador, sem "instalar" | não é bloqueante — o app funciona igual sem instalar; revisar prompt de instalação na Sprint 4 |

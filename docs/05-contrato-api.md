@@ -7,8 +7,11 @@ Regras gerais:
 
 - Todas as respostas em JSON, `Content-Type: application/json; charset=utf-8`.
 - Erros seguem o mesmo envelope (seção 5).
-- O app envia `X-App-Version` e um `X-Device-Id` anônimo (UUID gerado no primeiro
-  uso, **sem** relação com identidade — ver doc [08](08-legal-lgpd-e-riscos.md)).
+- CORS liberado para a origem da PWA (`Access-Control-Allow-Origin` fixo, não `*`,
+  já que o cliente é sempre o mesmo front-end web).
+- O front-end envia `X-App-Version` e um `X-Device-Id` anônimo (UUID gerado no
+  primeiro uso e guardado em `localStorage`, **sem** relação com identidade — ver
+  doc [08](08-legal-lgpd-e-riscos.md)).
 - Sem autenticação de usuário no MVP; rate limit por `X-Device-Id` + IP.
 
 ## 1. `GET /v1/precos`
@@ -110,7 +113,35 @@ Produto não encontrado **não é erro**:
 Metadados do produto sem os preços — usado pelo histórico local do app, que guarda só
 os GTINs.
 
-## 3. `GET /v1/localidades/estados` e `GET /v1/localidades/estados/{uf}/municipios`
+## 3. `GET /v1/produtos/busca`
+
+Autocomplete para a busca por nome (US-06) — a lista de sugestões que aparece
+enquanto o usuário digita, antes de disparar o `GET /v1/precos?termo=...`.
+
+### Parâmetros
+
+| Nome | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `q` | string(2–60) | sim | texto digitado até agora |
+| `limite` | int | não (padrão 8) | máx. de sugestões |
+
+### Resposta 200
+
+```json
+{
+  "sugestoes": [
+    { "gtin": "7896484410687", "descricao": "BEBIDA LACTEA ENERGIA 1L CHOCOLATE" },
+    { "gtin": "7896484410perg", "descricao": "BEBIDA LACTEA ENERGIA 1L MORANGO" }
+  ]
+}
+```
+
+Implementação: `SELECT ... ORDER BY similarity(descricao, :q) DESC LIMIT :limite`
+sobre o índice `gin_trgm_ops` da tabela `produto` (doc [04](04-modelo-de-dados.md)).
+Cache curto (60 s) por prefixo — poucos GTINs novos por minuto, não vale nem gravar
+no Redis na maioria dos casos.
+
+## 4. `GET /v1/localidades/estados` e `GET /v1/localidades/estados/{uf}/municipios`
 
 Proxy cacheado (TTL 30 dias) da API do IBGE, para o seletor manual de cidade. Existe
 para o app não depender diretamente de terceiros e para respostas menores.
@@ -119,14 +150,14 @@ para o app não depender diretamente de terceiros e para respostas menores.
 [{ "codigo_ibge": "4106902", "nome": "Curitiba", "uf": "PR" }]
 ```
 
-## 4. `GET /v1/health`
+## 5. `GET /v1/health`
 
 `{"status": "ok", "fontes": {"menor_preco_brasil": "up", "preco_hora_ba": "degraded"}}`
 
 Alimentado pelos testes de contrato — permite avisar dentro do app quando uma fonte
 está fora do ar.
 
-## 5. Envelope de erro
+## 6. Envelope de erro
 
 ```json
 {
@@ -146,14 +177,18 @@ está fora do ar.
 | 502 | `FONTE_INDISPONIVEL` | fonte caiu **e** não há fallback no banco |
 | 500 | `ERRO_INTERNO` | bug — sempre com `trace_id` no Sentry |
 
-## 6. Rate limiting
+## 7. Rate limiting
 
 | Escopo | Limite |
 |---|---|
 | por `X-Device-Id` | 60 req/min, 1.000 req/dia |
 | por IP | 300 req/min |
 
-## 7. Versionamento
+`/v1/produtos/busca` tem limite próprio mais alto (é chamado a cada tecla digitada):
+120 req/min por `X-Device-Id`, com debounce de 250 ms recomendado no front-end.
+
+## 8. Versionamento
 
 Prefixo `/v1` no path. Mudança quebra-contrato só em `/v2`, com `/v1` mantido por 90
-dias — apps antigos continuam nas lojas por muito tempo.
+dias — sem controle de versão instalada como num app de loja, mas PWA também tem
+cache de service worker desatualizado circulando por um tempo.
