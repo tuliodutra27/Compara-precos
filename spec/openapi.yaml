@@ -8,8 +8,8 @@ info:
   license:
     name: MIT
 servers:
-  - url: https://api.comparaprecos.app/v1
-    description: produção
+  - url: https://<seu-host>.<sua-tailnet>.ts.net:8443/api/v1
+    description: produção (homelab do autor — ver docs/03-arquitetura.md, seção 9)
   - url: http://localhost:8000/v1
     description: desenvolvimento
 

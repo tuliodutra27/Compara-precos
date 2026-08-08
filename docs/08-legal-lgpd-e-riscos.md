@@ -1,8 +1,18 @@
 # 08 — Jurídico, LGPD e riscos
 
 > Este documento organiza os pontos de atenção e propõe encaminhamentos. **Não é
-> parecer jurídico.** Antes do lançamento público, vale uma consulta rápida com
-> advogado de direito digital — algumas horas resolvem tudo o que está aqui.
+> parecer jurídico.** Antes de qualquer intenção comercial futura, vale uma consulta
+> rápida com advogado de direito digital — algumas horas resolvem tudo o que está aqui.
+
+**Contexto:** o Compara Preços, aqui, é um projeto pessoal e **não comercial** —
+hospedado no homelab do autor (doc [03](03-arquitetura.md), seção 9) e usado por ele
+e por amigos convidados, não distribuído ao público em geral. Isso reduz a régua de
+vários itens abaixo (não há relação de consumo, não há processador de dados
+terceirizado — o autor é controlador e operador ao mesmo tempo, tudo dentro da
+própria infraestrutura). Duas coisas, porém, continuam valendo do mesmo jeito
+independentemente de escala: os termos de uso das fontes de dado da SEFAZ (seção 1) e
+as boas práticas de privacidade com quem usa o app (seção 2) — tratar bem o dado de
+quem confia em você não é uma obrigação que só nasce em produto comercial.
 
 ## 1. Uso dos dados das SEFAZ
 
@@ -65,13 +75,15 @@ Na **fase 2** (envio de notas fiscais) o cenário muda: a NFC-e pode conter CPF 
 consumidor. Regra desde já: **descartar o CPF no momento do parsing**, antes de
 qualquer gravação. Nunca persistir CPF.
 
-## 3. Play Store / App Store (opcional, não é o MVP)
+## 3. Play Store / App Store (opcional, e ainda menos relevante para uso não comercial)
 
 Como PWA, o lançamento **não passa por loja de apps nem por processo de revisão** —
-é publicar num domínio HTTPS e pronto. Se, mais adiante, fizer sentido ter presença
-na Play Store (mais descoberta, ícone "oficial" no launcher), o caminho de menor
-esforço é empacotar a mesma PWA como **TWA (Trusted Web Activity)**, sem reescrever
-nada. Pontos a atender nesse momento futuro:
+é publicar no link do Funnel/domínio e pronto (doc [03](03-arquitetura.md), seção 9).
+Dado que o uso é pessoal, entre amigos, a Play Store deixa de ser sequer um objetivo
+natural — só entraria em cena se, um dia, o escopo mudar para algo mais amplo. Se
+fizer sentido nesse cenário futuro (mais descoberta, ícone "oficial" no launcher), o
+caminho de menor esforço é empacotar a mesma PWA como **TWA (Trusted Web Activity)**,
+sem reescrever nada. Pontos a atender nesse momento futuro:
 
 | Exigência | Como atender |
 |---|---|
@@ -103,10 +115,11 @@ Texto sugerido para a tela "De onde vêm os preços":
 | Navegador sem suporte a leitura de código de barras (Safari/Firefox sem `BarcodeDetector`) | média | médio | polyfill JS (doc 03) + busca por nome sempre visível como alternativa igual, não degradada |
 | Mesmo GTIN com embalagens diferentes | baixa | médio | outliers por IQR + exibir descrição da loja |
 | Reclamação de estabelecimento sobre preço exibido | baixa | médio | canal de contato + processo de correção documentado; o dado é fiscal e verificável |
-| Concorrência com o app oficial gratuito | alta | médio | diferencial é UX + comparação multi-fonte + lista de compras (v2) |
+| Servidor caseiro fora do ar (energia/internet residencial) | média | médio | aceito conscientemente para uso não comercial (doc 03, seção 9.6); sem SLA a cumprir com ninguém |
 
 ## 6. Perguntas em aberto
 
-- Registrar marca no INPI? Barato (~R$ 400) e evita dor de cabeça se o app crescer.
-- Modelo de receita: anúncios discretos, versão pro sem anúncios, ou nada no MVP?
-  Recomendação: **nada no MVP** — monetização antes de retenção mata produto novo.
+- Registrar marca no INPI? Só relevante se um dia o escopo mudar para algo público/
+  comercial — para uso pessoal entre amigos, dispensável por ora.
+- Modelo de receita? **Não se aplica** dado o uso não comercial — sem anúncios, sem
+  cobrança. Revisitar só se o escopo do projeto mudar.

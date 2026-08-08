@@ -46,6 +46,9 @@ estão indicados entre parênteses.
 4. **Fonte secundária (fase 2):** notas fiscais enviadas pelos próprios usuários via
    QR Code da NFC-e — a ideia original, que vira o plano B quando o estado não tem API. — *(02, 07)*
 5. **MVP geográfico:** lançar em **1 estado** (o de maior qualidade de API), não no Brasil todo. — *(01, 07)*
+6. **Hospedagem:** self-hosted no homelab pessoal do autor (Tailscale Funnel + Nginx
+   Proxy Manager), uso **não comercial**, restrito ao autor e a amigos convidados —
+   não um produto público. — *(03, 07, 08)*
 
 ## Como contribuir com o planejamento
 

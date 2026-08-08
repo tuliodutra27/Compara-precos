@@ -69,23 +69,31 @@ primeiro" e o roadmap muda (a fase 2 vira fase 1).
 
 ## Sprint 5 — Beta fechado
 
-- Deploy em domínio próprio com HTTPS (Cloudflare Pages/Vercel + Fly.io) — sem
-  submissão a loja alguma, é só publicar.
-- Link compartilhado com 10–15 pessoas reais por 1 semana (WhatsApp/e-mail).
+- Deploy no homelab: `docker compose up -d --build` em `~/apps/compara-precos/`,
+  Proxy Host novo no NPM, nova porta do Tailscale Funnel — tudo conforme doc
+  [03](03-arquitetura.md), seção 9. Nada novo para contratar.
+- Link compartilhado com 10–15 pessoas reais (amigos) por 1 semana (WhatsApp).
 - Instrumentar as métricas do doc [01](01-produto-e-escopo.md), seção 6, separando
   taxa de sucesso por caminho de entrada (scan vs. nome) e por navegador.
 - Corrigir os 5 problemas mais citados.
 - **DoD:** taxa de busca (scan + nome) com resultado útil ≥ 60% medida em campo.
 
-## Sprint 6 — Lançamento
+## Sprint 6 — Compartilhar com todo mundo
 
-- Política de privacidade publicada, linkada no rodapé — doc [08](08-legal-lgpd-e-riscos.md).
-- Domínio final, SEO básico (title, description, Open Graph para link bonito no
-  WhatsApp), ícone de instalação revisado.
-- Publicar o link amplamente; monitoramento com alerta de Sentry + alerta de queda
-  de fonte.
-- (Opcional, fora do MVP) empacotar como TWA para a Play Store — só depois de validar
-  tração via PWA pura.
+Não é um lançamento comercial — é abrir o link para o grupo maior de amigos que vai
+usar de verdade.
+
+- Revisar a tela "de onde vêm os preços" e a política de privacidade simples — doc
+  [08](08-legal-lgpd-e-riscos.md). Mesmo sem intenção comercial, é barato e correto
+  ser transparente com quem vai usar.
+- Ícone/Open Graph revisados, para o link ficar apresentável quando compartilhado no
+  WhatsApp.
+- Publicar o link (Funnel, ou domínio próprio se tiver comprado um) no grupo.
+- Monitoramento: alerta de Sentry + Netdata (já rodando no homelab) para saber que o
+  serviço caiu antes que alguém precise avisar.
+- (Opcional, sem pressa) empacotar como TWA para aparecer como ícone "de verdade" no
+  Android de quem usar bastante — dificilmente vale a taxa da App Store da Apple para
+  esse uso.
 
 ## Depois do MVP (ordem sugerida)
 
@@ -93,21 +101,22 @@ primeiro" e o roadmap muda (a fase 2 vira fase 1).
    cria base proprietária. Requer conta de usuário e fila assíncrona.
 2. **Lista de compras** com otimização de cesta ("onde a lista toda sai mais barato").
 3. **Alerta de preço** por produto favorito.
-4. **TWA na Play Store** (e, se fizer sentido, App Store) — mesma PWA, empacotada.
+4. **TWA na Play Store** (opcional) — mesma PWA, empacotada, só se quiser o ícone
+   "oficial" no celular de quem usa.
 5. Expansão de UFs — um adapter por vez, com o teste de contrato como portão.
 
 ## Resumo de custos (mensal, MVP)
 
 | Item | Custo |
 |---|---|
-| Fly.io (API + Postgres + Redis) | US$ 15–25 |
-| Cloudflare Pages / Vercel (frontend) | US$ 0 (free tier) |
-| Sentry (free tier) | US$ 0 |
-| Domínio | ~R$ 40/ano |
-| **Total recorrente** | **≈ US$ 15–25/mês** |
+| Homelab (servidor, energia, internet) | R$ 0 adicional — infraestrutura já existente e já paga |
+| Tailscale Funnel (TLS/ingress) | R$ 0 — coberto pelo free tier do Tailscale |
+| Sentry (free tier) | R$ 0 |
+| Domínio próprio (opcional) | ~R$ 40/ano — só se quiser trocar o link `.ts.net` |
+| **Total recorrente** | **R$ 0/mês** |
 
-Sem taxa de loja de apps no MVP (economia de US$ 25 + US$ 99/ano frente ao caminho
-nativo) — esse custo só entra se/quando publicar via TWA.
+Sem custo de nuvem e sem taxa de loja de apps — o único gasto possível é um domínio,
+e é opcional.
 
 ## Riscos do cronograma
 
@@ -117,3 +126,5 @@ nativo) — esse custo só entra se/quando publicar via TWA.
 | Fonte bloqueia o IP do servidor | 429/403 em massa | reduzir TTL de cache para +24 h, negociar acesso oficial com a SEFAZ |
 | `BarcodeDetector`/polyfill instável em iOS | scan falha/trava em teste real (S0-6) | busca por nome vira caminho padrão em iOS, não só alternativa |
 | Baixa instalação da PWA | usuários usam só via navegador, sem "instalar" | não é bloqueante — o app funciona igual sem instalar; revisar prompt de instalação na Sprint 4 |
+| Queda de energia/internet residencial | app fora do ar sem aviso | aceito conscientemente para uso não comercial (doc 03, seção 9.6); Netdata + alerta simples avisam rápido |
+| Disco do servidor cheio/corrompido sem backup externo | perda da base de preços coletada | backup diário fora do disco físico (doc 03, seção 9.4) — configurar já na Sprint 1, não depois |

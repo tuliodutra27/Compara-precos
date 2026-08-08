@@ -33,6 +33,9 @@ backend próprio (BFF — Backend For Frontend). Isso garante:
                                                              Brasil        BA          PR
 ```
 
+> Esse diagrama é a arquitetura lógica. Onde cada caixa efetivamente roda (o homelab
+> do autor) está na seção 9.
+
 ## 2. Por que PWA e não app nativo
 
 | | PWA | App nativo (React Native/Flutter) |
@@ -62,9 +65,8 @@ polimento nativo. Se o produto validar, nada impede empacotar a mesma PWA como T
 | Banco | **Postgres 16 + PostGIS** | busca por raio geográfico é uma query, não um algoritmo |
 | Cache | **Redis** | TTL por chave GTIN+geohash |
 | Fila (fase 2) | **Celery + Redis** ou `arq` | processamento assíncrono de notas fiscais enviadas |
-| Hospedagem frontend | **Cloudflare Pages** ou **Vercel** (free tier) | CDN global, HTTPS grátis por padrão — pré-requisito da PWA (seção 6) |
-| Hospedagem backend | **Fly.io / Railway**, container Docker | custo baixo (~US$ 15–25/mês), deploy simples, migração fácil para AWS depois |
-| Observabilidade | **Sentry** (frontend + API) + logs estruturados | sem isso, um adapter quebrado só é descoberto por reclamação de usuário |
+| Hospedagem | **Self-hosted no homelab do autor** (Ubuntu Server + Docker Compose), atrás do Nginx Proxy Manager já existente, publicado via Tailscale Funnel | R$ 0/mês — infra já paga; TLS automático via Funnel; deploy = `docker compose up -d --build`. Ver seção 9 |
+| Observabilidade | **Sentry** (frontend + API, free tier) + **Netdata** (já rodando no homelab, cobre os containers novos sem configuração extra) | sem isso, um adapter quebrado só é descoberto por reclamação de usuário |
 
 **Alternativa se preferir um stack só JS:** Node + Fastify + Prisma no backend
 funciona bem e reduz para uma linguagem só. A escolha por Python é pela fase 2
@@ -230,18 +232,139 @@ compara-precos/
 └── spec/openapi.yaml
 ```
 
-## 9. Ambientes
+## 9. Deploy no homelab (produção)
 
-- `dev` — docker-compose local (Postgres+PostGIS, Redis) + `vite dev` com proxy para
-  `localhost:8000`.
-- `prod` — front-end na CDN (Cloudflare Pages/Vercel), backend no Fly.io, Postgres
-  gerenciado com backup diário.
-- Sem `staging` no MVP: não compensa. Feature flags resolvem.
+> **Decisão:** o homelab pessoal do autor é a hospedagem **definitiva**, não um
+> estágio temporário de beta. É um projeto não comercial, para uso do autor e de
+> amigos convidados — não um produto público, então a barra de disponibilidade é
+> "funciona bem para um grupo pequeno", não "SLA de produto comercial". Essa troca
+> consciente está detalhada no fim desta seção.
+
+### 9.1 O servidor
+
+Ubuntu Server 24.04 num notebook (Intel i5-7200U, 4 vCPU, 7,7 GB RAM, disco de 290 GB —
+93 GB livres hoje). Já roda, sem folga preocupante, Nextcloud, MySQL, Home Assistant,
+Nginx Proxy Manager, AdGuard Home, Netdata e mais duas apps próprias (`uniasselvi-sjb`,
+`climatempo-sjb`). O padrão do homelab é **um projeto Docker Compose por app**, em
+`~/apps/<nome>/docker-compose.yml`, cada um na sua própria rede Docker isolada — o
+Nginx Proxy Manager **não** compartilha rede com os apps; ele alcança cada um pela
+porta publicada no host, via o gateway `172.18.0.1`. `compara-precos` segue o mesmo
+padrão, sem inventar nada novo.
+
+**Orçamento de recursos** (estimativa): Postgres+PostGIS ~300–500 MB, Redis
+~50–100 MB, backend (FastAPI) ~150–250 MB, frontend (nginx estático) ~20 MB → total
+~600 MB–900 MB. Folga confortável mesmo com tudo mais já rodando.
+
+### 9.2 Ingress público: Tailscale Funnel + Nginx Proxy Manager
+
+O Funnel **já está ativo** e público de verdade (sem exigir Tailscale instalado em
+quem acessa): `https://<seu-host>.<sua-tailnet>.ts.net`. Hoje a raiz (`/`) desse
+hostname aponta **direto** para `127.0.0.1:5000` (o `uniasselvi-sjb`) — **isso não
+muda**. O plano para o compara-precos:
+
+1. **Nova porta de Funnel**, `8443` (dentro do limite de 3 portas simultâneas do
+   Funnel — 443/8443/10000 — sem tocar na porta 443 já em uso), apontando para o
+   Nginx Proxy Manager (porta 80 do host) em vez de para um container direto. Isso
+   centraliza no NPM o roteamento de tudo que vier depois — a próxima app não precisa
+   de mais uma porta de Funnel, só de mais um Proxy Host.
+2. **Novo Proxy Host no NPM**, domínio `<seu-host>.<sua-tailnet>.ts.net` (SSL
+   desligado no NPM — o Funnel já termina TLS antes de chegar até ele), com duas
+   Custom Locations:
+   - `/` → `172.18.0.1:8090` (container `web`, nginx estático servindo a PWA)
+   - `/api` → `172.18.0.1:8091` (container `backend`, FastAPI/uvicorn)
+3. Isso muda a base URL do doc [05](05-contrato-api.md) de
+   `https://api.comparaprecos.app/v1` para
+   `https://<seu-host>.<sua-tailnet>.ts.net:8443/api/v1` — ajustar quando a Sprint 1
+   sair do papel.
+
+> A validar na hora (não é garantido sem testar): o `Host` header que chega no NPM
+> pode incluir a porta (`<seu-host>.<sua-tailnet>.ts.net:8443`) dependendo do
+> cliente. Se o Proxy Host cair em 404, é o primeiro lugar a olhar — ajustar o campo
+> "Domain Names".
+
+**HTTPS de graça:** o Funnel emite certificado Let's Encrypt automaticamente para o
+hostname — resolve sozinho o pré-requisito de contexto seguro da PWA (câmera,
+geolocalização, service worker) sem nenhuma configuração extra de TLS.
+
+**DNS interno (opcional):** registrar `comparaprecos.homelab` no AdGuard (rewrite
+para o IP Tailscale do servidor) + outro Proxy Host no NPM, no mesmo padrão de
+`casa.homelab`/`nextcloud.homelab` já existentes — dá acesso direto de dentro da
+tailnet/LAN sem depender do Funnel, útil para o próprio autor testar.
+
+### 9.3 docker-compose de referência
+
+Ilustrativo — nasce de fato na Sprint 1, não existe ainda:
+
+```yaml
+# ~/apps/compara-precos/docker-compose.yml
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=comparaprecos
+      - POSTGRES_USER=comparaprecos
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    # sem porta publicada: só o backend precisa enxergar
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # sem porta publicada
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "8091:8000"           # NPM alcança via 172.18.0.1:8091
+    environment:
+      - DATABASE_URL=postgresql://comparaprecos:${DB_PASSWORD}@db/comparaprecos
+      - REDIS_URL=redis://redis:6379/0
+    depends_on: [db, redis]
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    ports:
+      - "8090:80"              # NPM alcança via 172.18.0.1:8090
+```
+
+### 9.4 Backup — o item que não pode ficar para depois
+
+A base de preços coletada **é o ativo real do produto** (doc
+[04](04-modelo-de-dados.md)). Rodar num único disco, num único notebook, sem cópia
+fora dele, significa que uma falha de disco apaga meses de coleta de uma vez.
+Configurar já na Sprint 1, não depois de acumular dado que dói perder:
+
+- `pg_dump` diário via cron (ex. `0 3 * * *`), comprimido.
+- Cópia para **fora do disco físico do servidor** — o Nextcloud que já roda ali
+  ajuda, mas é o mesmo disco; melhor complementar com um destino realmente externo
+  (conta gratuita de object storage, ou até um `git push` do dump comprimido para um
+  repositório privado).
+
+### 9.5 Monitoramento
+
+O Netdata já roda no host e cobre os containers novos automaticamente — sem
+ferramenta nova, só vale configurar um alerta (Netdata já suporta) para container
+parado ou uso anômalo de CPU/RAM.
+
+### 9.6 A troca consciente
+
+Hospedar num notebook doméstico atrás de internet residencial, sem redundância de
+hardware nem energia, significa: se a energia cair, o ISP tiver uma instabilidade, ou
+o notebook travar, o app fica fora do ar sem aviso, até alguém notar. Para um produto
+comercial isso seria inaceitável — é por isso que o doc original recomendava
+Fly.io/Railway. Para uso pessoal entre amigos, é uma troca razoável e consciente:
+zero custo mensal, controle total, e o pior cenário é "manda mensagem no grupo que o
+site caiu" — não perda de receita ou reputação.
 
 ## 10. Perguntas em aberto
 
-- Cloudflare Pages ou Vercel para o front? Ambos têm free tier suficiente para o MVP —
-  não é decisão estruturante, escolha pelo que você já conhece.
+- Vale comprar um domínio próprio (ex. ~R$ 40/ano) para não depender do link feio do
+  `.ts.net`? Não é bloqueante — dá para trocar depois sem tocar em nada do backend,
+  só reapontando Funnel/NPM.
 - Vale medir, na Sprint 3, a taxa real de sucesso do polyfill de barcode em iOS antes
   de investir tempo em polimento de UI de scanner? Recomendação: **sim** — se a taxa
   for ruim, a busca por nome sobe de "alternativa" para "padrão" em iOS.

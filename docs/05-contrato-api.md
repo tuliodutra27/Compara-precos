@@ -1,7 +1,8 @@
 # 05 — Contrato da API (BFF v1)
 
-Base URL: `https://api.comparaprecos.app/v1` — contrato formal em
-[`spec/openapi.yaml`](../spec/openapi.yaml).
+Base URL: `https://<seu-host>.<sua-tailnet>.ts.net:8443/api/v1` (hospedagem no homelab
+do autor — doc [03](03-arquitetura.md), seção 9; endereço muda se um domínio próprio
+for adotado depois). Contrato formal em [`spec/openapi.yaml`](../spec/openapi.yaml).
 
 Regras gerais:
 
