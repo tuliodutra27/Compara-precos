@@ -16,33 +16,51 @@ quem confia em você não é uma obrigação que só nasce em produto comercial.
 
 ## 1. Uso dos dados das SEFAZ
 
+> **Atualizado após teste real (08/2026):** a premissa original desta seção — "portais
+> abertos ao cidadão, sem login" — **era verdadeira para a ideia em geral, mas não
+> para a Menor Preço Brasil especificamente**. Testado ao vivo: a API exige OAuth2
+> via gov.br, e mesmo com login a Procergs precisa autorizar nosso `client_id`
+> explicitamente (ver doc [02](02-fontes-de-dados.md), seção 2.2, e o pedido em
+> [adr/001](adr/001-pedido-procergs.md)). O que segue abaixo passa a valer para a
+> **página pública de consulta de NFC-e por chave de acesso** (a que o QR Code do
+> cupom fiscal aponta) — essa sim é, por desenho, aberta a qualquer cidadão sem login,
+> em todos os estados, porque é para isso que ela existe.
+
 **A favor:**
 
-- Os preços vêm de documentos fiscais eletrônicos e são publicados pelos próprios
-  estados em portais e apps **abertos ao cidadão, sem login**.
+- As páginas de consulta de NFC-e por chave de acesso são publicadas pelas próprias
+  SEFAZ estaduais, **abertas ao cidadão, sem login** — qualquer pessoa com o QR Code
+  de uma nota (a sua, a de um amigo que compartilhou) pode consultar.
 - Preço praticado por CNPJ não é dado pessoal — é informação comercial de pessoa
   jurídica, fora do escopo da LGPD.
 - Há amparo na Lei de Acesso à Informação (Lei 12.527/2011) e na política de dados
   abertos (Decreto 8.777/2016) para o acesso a dados públicos.
+- Diferente de bater numa API de terceiro repetidamente, aqui **quem decide fazer a
+  consulta é o próprio usuário, um QR Code de cada vez** — o padrão de uso é
+  fundamentalmente mais parecido com "abrir a página no navegador" do que com
+  scraping em massa.
 
-**Contra / a verificar:**
+**Contra / a verificar (agora específico da consulta de NFC-e do RJ):**
 
-- Os endpoints são **backends de apps oficiais, não APIs públicas documentadas**. Uso
-  automatizado pode violar os termos de uso do portal — **ler cada ToS é a tarefa S0-4**.
-- Volume alto de requisições pode ser tratado como abuso, independentemente do direito
-  de acesso ao dado.
+- Layout da página, presença de CAPTCHA e eventual rate limiting — nada disso foi
+  verificado ainda para o RJ (é o próximo passo real de validação técnica).
+- Volume alto de requisições pode ser tratado como abuso, mesmo sendo dado público —
+  mas aqui o volume é limitado pelo número de notas que os próprios usuários enviam,
+  não por um scraper varrendo GTINs.
 
 **Encaminhamentos:**
 
 1. `User-Agent` honesto e identificável (`ComparaPrecos/1.0 (+https://site; contato@…)`)
    — nada de fingir ser navegador.
-2. Cache agressivo: meta de ≤ 1 requisição por GTIN+região a cada 6 h.
+2. Uma requisição por nota enviada — não há necessidade de cache agressivo aqui, o
+   padrão de uso já é naturalmente de baixo volume.
 3. Respeitar `robots.txt` e `Retry-After`; backoff exponencial em 429/503.
-4. **Ofício para a SEFAZ do estado de lançamento** pedindo acesso oficial ou
-   confirmação de que o uso é permitido. Custa um e-mail e transforma risco em
-   parceria — vários estados respondem bem a apps que ampliam o alcance da política
-   de transparência. Fazer isso ainda na Sprint 1, sem esperar resposta para seguir.
-5. Sempre **creditar a fonte** na UI ("Dados: SEFAZ/PR — Menor Preço Nota Paraná") e
+4. **Sobre a Menor Preço Brasil especificamente:** o pedido informal já foi redigido
+   e a decisão é aguardar resposta antes de investir mais tempo nela (doc
+   [adr/001](adr/001-pedido-procergs.md)) — não é mais um "seria bom fazer", é o
+   estado real do projeto.
+5. Sempre **creditar a fonte** na UI ("Dados: notas fiscais enviadas pelos usuários,
+   consultadas na SEFAZ/RJ") e
    nunca sugerir vínculo oficial com o governo.
 
 ## 2. LGPD — dados dos nossos usuários
@@ -108,9 +126,8 @@ Texto sugerido para a tela "De onde vêm os preços":
 
 | Risco | Prob. | Impacto | Mitigação |
 |---|---|---|---|
-| Endpoint não documentado muda de formato | alta | alto | adapter isolado + teste de contrato diário na CI + payload bruto guardado 7 dias |
-| Bloqueio de IP pela SEFAZ | média | alto | cache, backoff, UA honesto, ofício oficial (seção 1.4) |
-| Cobertura de dados baixa na região do usuário | média | alto | expansão automática de raio → município → UF, com aviso; base colaborativa na fase 2 |
+| Layout/CAPTCHA da página de NFC-e do RJ muda ou bloqueia parsing | média | alto | parser isolado por UF + teste de contrato + payload bruto guardado 7 dias (mesmo padrão já previsto para adapters de API) |
+| Cobertura de dados baixa (poucas notas enviadas = poucas lojas cobertas) | alta | alto | é o risco esperado de partir de uma base colaborativa pequena; aceito para uso entre amigos, sem correção automática possível |
 | GTIN ausente na NFC-e de lojas pequenas | alta | médio | busca por nome como caminho equivalente, não escondido |
 | Navegador sem suporte a leitura de código de barras (Safari/Firefox sem `BarcodeDetector`) | média | médio | polyfill JS (doc 03) + busca por nome sempre visível como alternativa igual, não degradada |
 | Mesmo GTIN com embalagens diferentes | baixa | médio | outliers por IQR + exibir descrição da loja |

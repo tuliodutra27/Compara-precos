@@ -1,11 +1,11 @@
 # 02 — Fontes de dados de preço no Brasil
 
-> **Aviso importante:** os endpoints abaixo foram levantados por pesquisa e por
-> engenharia reversa pública (repositórios de terceiros e os próprios apps oficiais).
-> **Nenhum deles foi testado ao vivo neste levantamento** — a rede do ambiente onde
-> este documento foi escrito bloqueia domínios `.gov.br`. A **Sprint 0** do roadmap
-> existe exatamente para validar cada um deles na sua máquina antes de escrever
-> qualquer linha do app. Trate esta página como hipótese a confirmar, não como verdade.
+> **Status (08/2026): Sprint 0 parcialmente concluída.** A seção 2 (Menor Preço
+> Brasil) foi validada ao vivo — endpoint real encontrado e testado, mas **bloqueado**
+> por exigência de autorização da Procergs (seção 2.2). As seções 3–4 continuam sendo
+> hipótese de pesquisa, não testadas. O caminho de implementação atual do MVP é a
+> seção 5 (base colaborativa via NFC-e), ainda não validada para o layout do RJ
+> especificamente.
 
 ## 1. O fato central
 
@@ -13,7 +13,21 @@
 que é autorizada pela SEFAZ de cada estado — logo, a base é estadual. O que existe é
 uma **plataforma compartilhada** que a maioria dos estados adotou.
 
-## 2. Fonte primária: Menor Preço Brasil
+**Estado de lançamento decidido: Rio de Janeiro.** O RJ **não tem** portal próprio de
+preços (diferente de BA/PR) — sua única fonte de API seria a plataforma compartilhada
+da seção 2, que está bloqueada (seção 2.2). Por isso o caminho real do MVP é a base
+colaborativa (seção 5): você e seus amigos alimentando a base com as próprias notas
+fiscais. As seções 3.1–3.3 (BA, PR, ES/PE/RS) ficam como referência para expansão de
+UF **se/quando** a Menor Preço Brasil for desbloqueada, não como parte do MVP atual.
+
+## 2. Fonte primária (e única, para o RJ): Menor Preço Brasil — **BLOQUEADA**
+
+> **Atualização pós Sprint 0 (validado ao vivo, não é mais hipótese):** o endpoint foi
+> encontrado e confirmado, mas exige login gov.br **e** autorização específica da
+> Procergs que não está disponível por autosserviço. Ver seção 2.1 e 2.2 abaixo.
+> Enquanto não houver resposta da Procergs (doc [adr/001](adr/001-pedido-procergs.md)),
+> esta fonte está **fora do caminho de implementação** — o projeto segue pela base
+> colaborativa (seção 5), que virou a fonte real do MVP, não mais plano B.
 
 - **O que é:** app oficial de consulta de preços desenvolvido pela Procergs/Sefaz-RS
   em parceria com o ENCAT, lançado nacionalmente pelo CONFAZ. Nasceu como "Menor Preço
@@ -24,12 +38,57 @@ uma **plataforma compartilhada** que a maioria dos estados adotou.
   (o ES, por exemplo, adotou o Menor Preço Brasil como app único, aposentando o seu).
 - **Como funciona:** consulta por descrição do produto **ou por código de barras**,
   com geolocalização e raio — exatamente o fluxo que queremos.
-- **Como integrar:** não há documentação pública de API. O caminho é inspecionar o
-  tráfego do app oficial (`br.gov.rs.procergs.mpbr`) ou do site, com proxy HTTPS
-  (mitmproxy/Charles), e mapear os endpoints, headers e formato de resposta.
-  → tarefa **S0-1** do roadmap.
+### 2.1 O que foi confirmado (S0-1, feito em 08/2026)
 
-## 3. Fontes estaduais próprias (fora da plataforma compartilhada)
+A captura de tráfego por proxy não funcionou de forma prática (o app se recusou a
+abrir com um proxy configurado — provavelmente checagem de rede além de cert pinning
+simples). O caminho que funcionou foi **análise estática do APK**: o app não é
+nativo, é **Angular/Ionic empacotado com Capacitor** — uma WebView carregando
+JavaScript, então o código roda praticamente em texto puro dentro do próprio `.apk`
+(`adb pull` do pacote instalado + `unzip` já é suficiente para ler `assets/public/*.js`
+sem precisar descompilar bytecode).
+
+Isso revelou, com certeza (não é mais suposição):
+
+| O quê | Valor |
+|---|---|
+| API base | `https://mprs.sefaz.rs.gov.br/API/ConsultaMenorPrecoBrasil/api/v1/` |
+| Busca por GTIN | `GET Item/PorGtin?pesquisa.gtin=<n>&pesquisa.latitude=<lat>&pesquisa.longitude=<lon>&pesquisa.nroDiaPrz=30&pesquisa.nroKmDistancia=<km>` |
+| Busca por descrição | `GET Item/PorDescricao?pesquisa.descricao=<texto>&...` |
+| Busca por NCM | `GET Item/PorNcm?pesquisa.ncms=<ncm>&...` |
+| Tamanhos de GTIN aceitos | 8, 12, 13 ou 14 dígitos (o app decide GTIN vs. NCM pelo tamanho do texto digitado) |
+| Raio | padrão 5 km, máximo 30 km (confirmado no FAQ oficial) |
+| Janela temporal | 30 dias (`nroDiaPrz: 30`) — bate com o que o doc [06](06-algoritmo-preco-justo.md) já assumia |
+
+### 2.2 O que bloqueia o uso (o motivo real desta fonte estar suspensa)
+
+Testado ao vivo (`curl`, sem token, 3 GTINs reais, coordenadas do Rio de Janeiro):
+**todas as chamadas devolvem `401 Authorization has been denied`.** A pesquisa de
+preço — que deveria ser um dado público — exige login.
+
+O login é **OAuth2 via gov.br** (Login Único, escopo
+`openid+email+profile+govbr_confiabilidades`), não um login do próprio app. E aqui
+está o bloqueio real, confirmado por pesquisa na documentação oficial do gov.br:
+
+> **Login Único só prova quem é o usuário. Ele não dá acesso a sistemas de terceiros.**
+> Mesmo que cada usuário do compara-precos logasse com a própria conta gov.br, a API
+> da Procergs (`mprs.sefaz.rs.gov.br`) verifica o `client_id` (campo `aud` do token) —
+> ela só aceita tokens emitidos *para o client_id do app oficial da Menor Preço
+> Brasil*. Nosso app precisaria que a **Procergs autorizasse especificamente o nosso
+> client_id** a chamar a API deles — uma autorização discricionária, pedida
+> diretamente a eles, não um cadastro de autosserviço.
+>
+> O processo formal de integração (Conecta gov.br) exige entidade registrada com
+> diretor de TI — não se aplica a projeto pessoal. O único canal viável encontrado é
+> um "Fale Conosco" de atendimento ao cidadão, sem garantia de resposta.
+
+**Decisão registrada:** foi redigido um pedido informal (doc
+[adr/001](adr/001-pedido-procergs.md)) e o projeto **aguarda resposta antes de
+prosseguir com código** contra esta fonte — decisão explícita do autor, não uma
+suposição minha. Enquanto isso, a base colaborativa (seção 5) é o caminho de
+implementação real do MVP no RJ.
+
+## 3. Fontes estaduais próprias (fora da plataforma compartilhada, referência para expansão futura de UF)
 
 ### 3.1 Preço da Hora — Bahia
 
@@ -99,10 +158,13 @@ de texto (`pg_trgm`). Descrição suja = autocomplete ruim = usuário não encon
 produto digitando — o mesmo problema de qualidade, só que na porta de entrada por
 texto em vez da porta de entrada por GTIN.
 
-## 5. Plano B (e complemento): base colaborativa via NFC-e
+## 5. A ideia original vira o caminho real do MVP: base colaborativa via NFC-e
 
-A sua ideia original — usuários enviando notas — continua valendo, como **fase 2** e
-como cobertura para estados sem API:
+> **Estava desenhada como "fase 2"/plano B; com a Menor Preço Brasil bloqueada
+> (seção 2.2), esta seção é o que efetivamente se implementa primeiro no RJ.** A
+> mecânica não muda, só a ordem no roadmap — ver doc [07](07-roadmap-mvp.md).
+
+A sua ideia original — usuários enviando notas — é a base de dados real deste MVP:
 
 1. O usuário escaneia o **QR Code da NFC-e** (todo cupom fiscal tem).
 2. O QR contém a URL de consulta pública da SEFAZ daquele estado, com a chave de acesso.
@@ -110,12 +172,22 @@ como cobertura para estados sem API:
    GTIN, quantidade, valor unitário**, além de CNPJ, endereço e data/hora.
 4. Uma nota = dezenas de preços. Poucos usuários ativos geram base rápido.
 
-Por que não no MVP: cada estado tem um layout de página diferente (parser por UF),
-há CAPTCHA em alguns portais, e sem usuários não há base — é um problema clássico de
-partida a frio, que as APIs estaduais resolvem de graça.
+**Por que era considerada "não no MVP" originalmente:** cada estado tem um layout de
+página diferente (parser por UF — mas agora só precisa o do RJ), há CAPTCHA em alguns
+portais, e sem usuários não há base — problema clássico de partida a frio. No cenário
+atual (uso pessoal, você + amigos, base pequena e controlada), a partida a frio não é
+o obstáculo que seria para um produto público — vocês mesmos alimentam a base com as
+compras reais que já fariam de qualquer forma.
 
-**Mas projete o banco desde já para as duas origens** — é por isso que a tabela
-`oferta` tem a coluna `fonte` no doc [04](04-modelo-de-dados.md).
+**Falta validar (vira o novo S0-1', ver doc 07):** o layout da página de consulta de
+NFC-e do **RJ especificamente** (`www.fazenda.rj.gov.br` ou equivalente) — path do QR
+Code, se tem CAPTCHA, formato do HTML a parsear. Isso não foi verificado ainda nesta
+rodada.
+
+**O banco já está pronto para as duas origens** — é por isso que a tabela `oferta`
+tem a coluna `fonte` no doc [04](04-modelo-de-dados.md). Se a Procergs um dia
+autorizar (doc [adr/001](adr/001-pedido-procergs.md)), a Menor Preço Brasil entra
+como fonte adicional sem redesenhar nada.
 
 ## 6. Geografia: IBGE
 
@@ -140,7 +212,17 @@ Usada no seletor "cidade/região" do filtro manual. Carregar uma vez e cachear n
 
 ## 8. Perguntas em aberto
 
-- Menor Preço Brasil: qual o endpoint real, e ele aceita GTIN direto? **(S0-1)**
-- Preço da Hora BA: o handshake de CSRF ainda é necessário? **(S0-2)**
-- Nota Paraná: o endpoint `/api/v1/produtos` continua ativo e sem autenticação? **(S0-3)**
-- Algum portal expõe termos de uso que proíbem consumo programático? **(S0-4)**
+- ~~Menor Preço Brasil: qual o endpoint real, ele aceita GTIN direto?~~ **Respondido,
+  seção 2.1.**
+- ~~O app usa certificate pinning?~~ **Não chegou a ser necessário confirmar** — a
+  captura por proxy falhou por outro motivo (o app não abriu com proxy configurado),
+  mas a análise estática do APK resolveu sem precisar dessa resposta.
+- A Procergs vai responder ao pedido informal (doc [adr/001](adr/001-pedido-procergs.md))?
+  Se sim, o que dizem? **Bloqueante para reativar a seção 2.**
+- Qual o layout da página de consulta pública de NFC-e do **RJ** (para o parser da
+  seção 5)? Ainda não verificado — próximo passo real de validação técnica.
+- A Menor Preço Brasil expõe termos de uso que proíbem consumo programático? Ficou
+  irrelevante por ora (bloqueada por autenticação antes mesmo de chegar no ToS).
+- *(Backlog de expansão de UF, fora do MVP do RJ)* Preço da Hora BA: o handshake de
+  CSRF ainda é necessário? Nota Paraná: o endpoint `/api/v1/produtos` continua ativo e
+  sem autenticação?

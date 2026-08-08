@@ -1,0 +1,34 @@
+# --- Artefatos de investigação (spikes/) — nunca commitar ---
+# APK de terceiros, conteúdo extraído/descompilado (copyright do desenvolvedor
+# original) e runtimes/ferramentas baixadas — grandes, binários, não são nosso código.
+spikes/apk/
+spikes/apk_raw/
+spikes/apk_decompiled/
+spikes/jre/
+spikes/jadx/
+spikes/*.log
+spikes/*.zip
+spikes/*.bat
+
+# --- Python (backend, quando existir) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# --- Node (web, quando existir) ---
+node_modules/
+dist/
+.vite/
+
+# --- Segredos e ambiente ---
+.env
+.env.*
+!.env.example
+
+# --- Editores / SO ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
